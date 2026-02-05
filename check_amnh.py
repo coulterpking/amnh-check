@@ -1,45 +1,30 @@
 #!/usr/bin/env python3
-"""AMNH Early Adventures Monitor - GitHub Actions version"""
-import requests
+"""AMNH Early Adventures Monitor - Playwright version"""
 import hashlib
 import os
+import requests
 from pathlib import Path
+from playwright.sync_api import sync_playwright
 
 URL = "https://www.amnh.org/learn-teach/children-and-families/early-adventures"
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "amnh-early-adventures")
 STATE_FILE = Path("state.txt")
 
-def get_page_content():
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-    }
-    response = requests.get(URL, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.text
-
-def send_notification(message, title="AMNH Early Adventures", tags="school"):
-    requests.post(
-        f"https://ntfy.sh/{NTFY_TOPIC}",
-        data=message.encode('utf-8'),
-        headers={"Title": title, "Priority": "high", "Tags": tags}
-    )
+def send_notification(message):
+    requests.post(f"https://ntfy.sh/{NTFY_TOPIC}", data=message.encode('utf-8'),
+                  headers={"Title": "AMNH Early Adventures", "Priority": "high", "Tags": "school"})
     print(f"Notification sent: {message}")
 
 def main():
-    try:
-        content = get_page_content()
-    except Exception as e:
-        send_notification(f"Monitor failed: {e}", title="AMNH Monitor Error", tags="warning")
-        raise
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(URL, timeout=60000)
+        content = page.content()
+        browser.close()
 
     current_hash = hashlib.md5(content.encode()).hexdigest()
     has_target = "2026-2027" in content or "2026–2027" in content
-
     previous_hash = STATE_FILE.read_text().strip() if STATE_FILE.exists() else None
 
     if previous_hash is None:
@@ -49,10 +34,8 @@ def main():
             send_notification("2026-2027 info is ALREADY on the page!")
     elif current_hash != previous_hash:
         STATE_FILE.write_text(current_hash)
-        if has_target:
-            send_notification("🎉 Page updated with 2026-2027 info! Applications may be open!", tags="tada")
-        else:
-            send_notification("Page updated (no 2026-2027 info yet)")
+        msg = "🎉 Page updated with 2026-2027 info!" if has_target else "Page updated (no 2026-2027 yet)"
+        send_notification(msg)
     else:
         print("No changes.")
 

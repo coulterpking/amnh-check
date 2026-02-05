@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """AMNH Early Adventures Monitor - GitHub Actions version"""
-
 import requests
 import hashlib
 import os
@@ -23,18 +22,22 @@ def get_page_content():
     response.raise_for_status()
     return response.text
 
-def send_notification(message, title="AMNH Early Adventures"):
+def send_notification(message, title="AMNH Early Adventures", tags="school"):
     requests.post(
         f"https://ntfy.sh/{NTFY_TOPIC}",
         data=message.encode('utf-8'),
-        headers={"Title": title, "Priority": "high", "Tags": "school,tada"}
+        headers={"Title": title, "Priority": "high", "Tags": tags}
     )
     print(f"Notification sent: {message}")
 
 def main():
-    content = get_page_content()
-    current_hash = hashlib.md5(content.encode()).hexdigest()
+    try:
+        content = get_page_content()
+    except Exception as e:
+        send_notification(f"Monitor failed: {e}", title="AMNH Monitor Error", tags="warning")
+        raise
 
+    current_hash = hashlib.md5(content.encode()).hexdigest()
     has_target = "2026-2027" in content or "2026–2027" in content
 
     previous_hash = STATE_FILE.read_text().strip() if STATE_FILE.exists() else None
@@ -47,7 +50,7 @@ def main():
     elif current_hash != previous_hash:
         STATE_FILE.write_text(current_hash)
         if has_target:
-            send_notification("🎉 Page updated with 2026-2027 info! Applications may be open!")
+            send_notification("🎉 Page updated with 2026-2027 info! Applications may be open!", tags="tada")
         else:
             send_notification("Page updated (no 2026-2027 info yet)")
     else:

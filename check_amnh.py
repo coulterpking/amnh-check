@@ -101,6 +101,8 @@ def handle_error(error):
 def clear_error_state():
     """Reset error tracking on success. Notify recovery if we had alerted."""
     state = load_error_state()
+    if state["consecutive_errors"] == 0:
+        return  # Nothing to clear, no commit needed
     if state["last_notified_time"] and state["consecutive_errors"] >= ERROR_THRESHOLD:
         send_notification(
             f"Recovered after {state['consecutive_errors']} consecutive errors.",
@@ -108,8 +110,7 @@ def clear_error_state():
             priority="low",
             tags="white_check_mark"
         )
-    if state["consecutive_errors"] > 0:
-        print(f"Cleared {state['consecutive_errors']} consecutive errors")
+    print(f"Cleared {state['consecutive_errors']} consecutive errors")
     save_error_state({"consecutive_errors": 0, "first_error_time": None, "last_notified_time": None})
 
 
@@ -152,5 +153,4 @@ def main():
         print("No changes.")
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__

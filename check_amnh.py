@@ -17,8 +17,22 @@ ERROR_THRESHOLD = 4
 # Re-notify about persistent errors every 4 hours
 ERROR_RE_NOTIFY_HOURS = 4
 
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 
 def get_page_content():
+    """Try simple HTTP first, fall back to Playwright if content looks incomplete."""
+    try:
+        resp = requests.get(URL, headers={"User-Agent": USER_AGENT}, timeout=30)
+        resp.raise_for_status()
+        # Sanity check: page should have substantial content
+        if len(resp.text) > 5000:
+            print(f"Fetched via requests ({len(resp.text)} chars)")
+            return resp.text
+        print(f"Requests got suspiciously short response ({len(resp.text)} chars), trying Playwright")
+    except Exception as e:
+        print(f"Requests failed ({e}), trying Playwright")
+
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -27,6 +41,7 @@ def get_page_content():
         page.wait_for_load_state("networkidle", timeout=60000)
         content = page.content()
         browser.close()
+        print(f"Fetched via Playwright ({len(content)} chars)")
         return content
 
 

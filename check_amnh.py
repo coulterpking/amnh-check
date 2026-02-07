@@ -21,11 +21,10 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 
 def get_page_content():
-    """Try simple HTTP first, fall back to Playwright if content looks incomplete."""
+    """Try simple HTTP first, fall back to stealth Playwright."""
     try:
         resp = requests.get(URL, headers={"User-Agent": USER_AGENT}, timeout=30)
         resp.raise_for_status()
-        # Sanity check: page should have substantial content
         if len(resp.text) > 5000:
             print(f"Fetched via requests ({len(resp.text)} chars)")
             return resp.text
@@ -35,11 +34,20 @@ def get_page_content():
 
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=USER_AGENT,
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+        )
+        page = context.new_page()
+        page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        """)
         page.goto(URL, timeout=60000)
         page.wait_for_load_state("networkidle", timeout=60000)
         content = page.content()
+        context.close()
         browser.close()
         print(f"Fetched via Playwright ({len(content)} chars)")
         return content

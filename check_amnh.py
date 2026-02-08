@@ -137,6 +137,20 @@ def clear_error_state():
     save_error_state({"consecutive_errors": 0, "first_error_time": None, "last_notified_time": None})
 
 
+def load_page_state():
+    """Load the previous page state (has_2025, has_2027)."""
+    if STATE_FILE.exists():
+        try:
+            return json.loads(STATE_FILE.read_text())
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return None
+
+
+def save_page_state(state):
+    STATE_FILE.write_text(json.dumps(state))
+
+
 def main():
     print(f"Checking {URL}...")
 
@@ -154,26 +168,28 @@ def main():
     # Success - clear any error streak
     clear_error_state()
 
-    current_hash = hashlib.md5(content.encode()).hexdigest()
     has_2027 = "2027" in content
     has_2025 = "2025" in content
+    current_state = {"has_2025": has_2025, "has_2027": has_2027}
 
-    previous_hash = STATE_FILE.read_text().strip() if STATE_FILE.exists() else None
-    STATE_FILE.write_text(current_hash)
+    previous_state = load_page_state()
 
-    if previous_hash is None:
-        print(f"Baseline saved. has_2027={has_2027}, has_2025={has_2025}")
+    print(f"Current: has_2025={has_2025}, has_2027={has_2027}")
+
+    if previous_state is None:
+        print("First run, saving baseline.")
+        save_page_state(current_state)
         if has_2027:
             send_with_fallback("2027 is ALREADY on the page!", title="🎉 AMNH 2027 Found!", tags="tada")
-    elif current_hash != previous_hash:
+    elif current_state != previous_state:
+        print(f"State changed from {previous_state} to {current_state}")
+        save_page_state(current_state)
         if has_2027:
             send_with_fallback("Page now shows 2027! Check it!", title="🎉 AMNH 2027 Found!", tags="tada")
         elif not has_2025:
             send_with_fallback("2025 is gone from the page - they may be updating!", title="AMNH Changing", tags="eyes")
-        else:
-            print("Page changed but still 2025, no 2027.")
     else:
-        print("No changes.")
+        print("No meaningful changes.")
 
 
 if __name__ == "__main__":

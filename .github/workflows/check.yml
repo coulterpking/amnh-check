@@ -11,6 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore error state
+        uses: actions/cache/restore@v4
+        with:
+          path: error_state.json
+          key: error-state-dummy
+          restore-keys: error-state-
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -26,12 +33,18 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python check_amnh.py
 
+      - name: Save error state
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: error_state.json
+          key: error-state-${{ github.run_id }}
+
       - name: Commit state changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add state.txt
-          [ -f error_state.json ] && git add error_state.json || true
           git diff --staged --quiet || git commit -m "Update state"
           git pull --rebase
           git push
